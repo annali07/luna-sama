@@ -26,14 +26,20 @@ private:
   CharacterView* character_ = nullptr;
   IOOverlay*     io_ = nullptr;
 
-  // drag helpers
+  // drag state
   bool   dragging_ = false;
   bool   draggingStarted_ = false;
   QPoint dragOffset_;
+
+  // configurable drag modifier (Alt by default)
+  Qt::KeyboardModifier dragMod_ = Qt::AltModifier;
+  void setDragModifier(Qt::KeyboardModifier mod, bool persist = true);
+  Qt::KeyboardModifier dragModifier() const { return dragMod_; }
 
   void applyWindowFlags();
   void buildUi();
   void connectSignals();
   void showContextMenu(const QPoint& globalPos);
   void populateModesMenu(class QMenu* menu);
+  void populateDragBindingMenu(class QMenu* menu);   // <--- NEW
 };
