@@ -12,6 +12,7 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets Gui)
 add_executable(luna_sama
   app/main.cpp
   ui/MainWindow.cpp ui/MainWindow.h
+  ui/ModeMenu.cpp ui/ModeMenu.h
   ui/CharacterView.cpp ui/CharacterView.h
   ui/IOOverlay.cpp ui/IOOverlay.h
   core/BackendClient.h
