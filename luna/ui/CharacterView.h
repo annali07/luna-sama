@@ -7,6 +7,8 @@
 #pragma once
 #include <QWidget>
 #include <QImage>
+#include <QRect>
+#include <QSize>
 
 class ModeManager;
 
@@ -14,7 +16,12 @@ class CharacterView : public QWidget {
   Q_OBJECT
 public:
   explicit CharacterView(ModeManager* modes, QWidget* parent=nullptr);
-  QSize sizeHint() const override { return {320, 360}; }
+
+  void  setScale(qreal s);
+  qreal scale() const { return scale_; }
+
+  QSize sizeHint() const override;
+  QRect imageRect() const;                 // where the sprite is drawn
 
 signals:
   void leftClicked();
@@ -26,6 +33,7 @@ protected:
 
 private:
   ModeManager* modes_;
-  void updateFromManager();   // just calls update()
-};
+  qreal        scale_ = 1.0;
 
+  void updateFromManager();
+};
