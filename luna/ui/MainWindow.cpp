@@ -143,43 +143,77 @@ void MainWindow::showEvent(QShowEvent* e) {
 
 void MainWindow::applyScale(qreal s) {
   QSettings().setValue("uiScale", s);
-  qDebug() << "applyScale ->" << s;
+  qDebug() << "APPLY SCALE ->" << s;
 
   keepBottomRightAnchor(this, [this, s]{
-    character_->setScale(s);              // 1) set scale in the view
-    character_->adjustSize();             // 2) let it adopt its sizeHint
-    setFixedSize(character_->sizeHint()); // 3) window == sprite size
+    character_->setScale(s);              // update view scale
+    character_->adjustSize();             // adopt new sizeHint
+    setFixedSize(character_->sizeHint()); // window == sprite size
   });
 
-  updateIoGeometry();                     // 4) move/resize the textbox
+  updateIoGeometry();                     // textbox follows PNG
 }
 
+
 bool MainWindow::eventFilter(QObject* obj, QEvent* ev) {
+  // Identify where the event happened
   QWidget* w = qobject_cast<QWidget*>(obj);
   const bool onSelf      = (obj == this);
   const bool onCharacter = (obj == character_);
   const bool onOverlay   = (w && (w == io_ || io_->isAncestorOf(w)));
 
-  // Alt + Wheel = zoom 50%..100% (works on wheel and touchpad)
+  // ---------- Alt + Wheel = zoom (handles mouse & touchpad) ----------
+  // ---- Alt + Wheel = zoom (50%..100%), works for vertical or horizontal wheels/touchpads ----
   if (ev->type() == QEvent::Wheel && (onCharacter || onOverlay)) {
     auto* we = static_cast<QWheelEvent*>(ev);
-    if (we->modifiers() & Qt::AltModifier) {
-      // mouse wheel (angleDelta) and smooth touchpad (pixelDelta)
-      qreal steps = 0.0;
-      if (!we->angleDelta().isNull())      steps = we->angleDelta().y() / 120.0;
-      else if (!we->pixelDelta().isNull()) steps = we->pixelDelta().y() / 60.0;
+    const Qt::KeyboardModifiers mods = we->modifiers() | QGuiApplication::keyboardModifiers();
+    if (mods & Qt::AltModifier) {
 
-      if (steps != 0.0) {
-        const qreal step = 0.05;                 // 5% per notch
-        qreal s = character_->scale() + steps * step;
-        s = std::clamp<qreal>(s, 0.5, 1.0);      // clamp 50%..100%
-        qDebug() << "ALT-WHEEL steps" << steps << "target scale" << s;
-        applyScale(s);                            // <— CALL THE HELPER
+      // pick the dominant axis and keep its SIGN
+      auto dominant = [](const QPoint& d)->int {
+        return (std::abs(d.y()) >= std::abs(d.x())) ? d.y() : d.x();
+      };
+
+      // direction: +1 grow, -1 shrink
+      int dir = 0;
+      if (!we->angleDelta().isNull()) {
+        int d = dominant(we->angleDelta());
+        dir = (d > 0) ? +1 : (d < 0 ? -1 : 0);
+      } else if (!we->pixelDelta().isNull()) {
+        int d = dominant(we->pixelDelta());
+        dir = (d > 0) ? +1 : (d < 0 ? -1 : 0);
       }
+
+      if (dir != 0) {
+        // one notch = 5% change; flip sign for horizontal if you prefer:
+        // bool invertHorizontal = false;  // set true if you want the opposite feel
+        // if (!we->angleDelta().isNull() && std::abs(we->angleDelta().x()) > std::abs(we->angleDelta().y()))
+        //   dir = invertHorizontal ? dir : -dir;
+
+        qreal s = character_->scale() + dir * 0.05;
+        s = std::clamp<qreal>(s, 0.5, 1.0);
+        applyScale(s);
+      }
+
       we->accept();
-      return true;                                // eat Alt+wheel
+      return true;
     }
   }
+
+
+  // ---------- Keyboard fallback for testing: [ smaller, ] larger ----------
+  if (ev->type() == QEvent::KeyPress && (onSelf || onCharacter || onOverlay)) {
+    auto* ke = static_cast<QKeyEvent*>(ev);
+    if (ke->key() == Qt::Key_BracketLeft) {
+      applyScale(std::max<qreal>(0.5, character_->scale() - 0.05));
+      return true;
+    }
+    if (ke->key() == Qt::Key_BracketRight) {
+      applyScale(std::min<qreal>(1.0, character_->scale() + 0.05));
+      return true;
+    }
+  }
+
 
 
   // Drag with configured modifier (Alt/Ctrl/Shift/None)
