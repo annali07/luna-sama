@@ -35,6 +35,7 @@ private:
   Qt::KeyboardModifier dragMod_ = Qt::AltModifier;   // configurable
 
   // Behavior
+  void applyScale(qreal s);
   void applyWindowFlags();
   void connectSignals();
   void showContextMenu(const QPoint& globalPos);
