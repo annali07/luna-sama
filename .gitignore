@@ -53,3 +53,4 @@ compile_commands.json
 
 *_qmlcache.qrc
 gsv/weights/*
+gsv/tools/AP_BWE_main/24kto48k/*
