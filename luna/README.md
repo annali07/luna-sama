@@ -31,3 +31,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build --config Debug
 ./build/desktop_pet   # (or build\Debug\desktop_pet.exe on Windows)
 ```
+
+
+## NOTE
+- To change the drag, default = Alt + Left click. Change the Alt key in `MainWindow.h` and `MainWindow.cpp`. Currently suppoprt Alt, Ctrl, Shift. Can freely change between these in app UI.

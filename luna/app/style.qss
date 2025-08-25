@@ -1,5 +1,5 @@
 /* keep global styling minimal; scope to our input box by objectName */
-#ioEdit {
+/* #ioEdit {
   background: rgba(0,0,0,60);
   color: white;
   border: 1px solid rgba(255,255,255,60);
@@ -9,7 +9,7 @@
 #ioEdit:disabled {
   background: rgba(0,0,0,30);
   color: rgba(255,255,255,180);
-}
+} */
 
 /* optional: make tool menus look a tad nicer on transparent windows */
 QMenu {
@@ -18,3 +18,7 @@ QMenu {
   border: 1px solid rgba(255,255,255,40);
 }
 QMenu::item:selected { background: rgba(255,255,255,30); }
+
+#MainRoot { background: transparent; }
+
+

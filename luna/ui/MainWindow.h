@@ -11,6 +11,7 @@
 class CharacterView;
 class IOOverlay;
 class ModeManager;
+class QMenu;
 
 class MainWindow : public QWidget {
   Q_OBJECT
@@ -22,24 +23,24 @@ protected:
   bool eventFilter(QObject* obj, QEvent* ev) override;
 
 private:
-  ModeManager*   modes_ = nullptr;
-  CharacterView* character_ = nullptr;
-  IOOverlay*     io_ = nullptr;
+  // Core widgets
+  ModeManager*   modes_      = nullptr;
+  CharacterView* character_  = nullptr;
+  IOOverlay*     io_         = nullptr;
 
-  // drag state
-  bool   dragging_ = false;
+  // Drag state
+  bool   dragging_        = false;
   bool   draggingStarted_ = false;
   QPoint dragOffset_;
+  Qt::KeyboardModifier dragMod_ = Qt::AltModifier;   // configurable
 
-  // configurable drag modifier (Alt by default)
-  Qt::KeyboardModifier dragMod_ = Qt::AltModifier;
-  void setDragModifier(Qt::KeyboardModifier mod, bool persist = true);
-  Qt::KeyboardModifier dragModifier() const { return dragMod_; }
-
+  // Behavior
   void applyWindowFlags();
-  void buildUi();
   void connectSignals();
   void showContextMenu(const QPoint& globalPos);
-  void populateModesMenu(class QMenu* menu);
-  void populateDragBindingMenu(class QMenu* menu);   // <--- NEW
+  void populateModesMenu(QMenu* menu);
+  void populateDragBindingMenu(QMenu* menu);
+  void updateIoGeometry();       // place IOOverlay over bottom 40% of sprite
+  void syncWindowToSprite();     // window size == sprite size; keep bottom-right
+  void setDragModifier(Qt::KeyboardModifier mod, bool persist = true);
 };
