@@ -55,7 +55,3 @@ compile_commands.json
 gsv/weights/*
 gsv/tools/AP_BWE_main/24kto48k/*gsv/weights/**
 gsv/tools/AP_BWE_main/24kto48k/g_24kto48k.zip
-*.ckpt
-*.pth
-*.safetensors
-*.zip
