@@ -1,4 +1,4 @@
-# Luna-sama's voice trained with GPT-SoVits
+# Luna's voice trained with GPT-SoVits
 Training data: 3806 `.ogg` files extracted from Tsuki ni Yorisou Otome no Sahou
 
 Trained with RTX4090
