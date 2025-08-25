@@ -23,6 +23,9 @@ Snap to corner on first run; Draggable by left-button drag on anywhere of the co
 #include <QAbstractScrollArea>
 
 #include <algorithm>
+#include <QApplication>
+#include <QDebug>
+#include <QKeyEvent>
 
 #include <QWheelEvent>
 #include <QtMath>
@@ -64,40 +67,19 @@ static void keepBottomRightAnchor(QWidget* w, std::function<void()> doResize) {
   const QRect fr = w->frameGeometry();
   w->move(br - QPoint(fr.width()-1, fr.height()-1));
 }
-
 MainWindow::MainWindow(QWidget* parent) : QWidget(parent) {
-  // core
+  // 1) Window flags & transparent background
+  applyWindowFlags();
+  setObjectName("MainRoot"); // QSS: #MainRoot { background: transparent; }
+
+  // 2) Core widgets
   modes_     = new ModeManager(this);
   character_ = new CharacterView(modes_, this);
-  character_->installEventFilter(this);
-
   io_        = new IOOverlay(this);
   io_->setNames(QString::fromUtf8("あなた"), QString::fromUtf8("桜小路ルナ"));
-  io_->raise();
-  character_->setScale(QSettings().value("uiScale", 1.0).toDouble());
+  io_->raise(); // overlay on top
 
-  
-  this->installEventFilter(this);
-  io_->installEventFilter(this);
-  for (auto* ed : io_->findChildren<QTextEdit*>()) {
-    ed->installEventFilter(this);                  // editor sees most wheel events
-    if (ed->viewport()) ed->viewport()->installEventFilter(this); // wheel often hits viewport
-  }
-
-  // load saved scale (default 1.0), then fit window/overlay
-  {
-    const qreal s = QSettings().value("uiScale", 1.0).toDouble();
-    character_->setScale(s);
-  }
-  QTimer::singleShot(0, this, [this]{ syncWindowToSprite(); });
-
-
-
-  // window style
-  applyWindowFlags();
-  setObjectName("MainRoot"); // if you want to force transparent via QSS: #MainRoot{background:transparent;}
-
-  // layout: only the character in it (no margins/spacing)
+  // 3) Layout: the window should size exactly to the sprite; no margins
   auto* layout = new QVBoxLayout(this);
   layout->setContentsMargins(0,0,0,0);
   layout->setSpacing(0);
@@ -105,19 +87,27 @@ MainWindow::MainWindow(QWidget* parent) : QWidget(parent) {
   setLayout(layout);
   character_->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
-  // load saved drag binding (default Alt)
+  // 4) Load settings (drag modifier + initial scale)
   dragMod_ = keyToMod(QSettings().value("dragModifier", "Alt").toString());
+  {
+    const qreal s = QSettings().value("uiScale", 1.0).toDouble();
+    character_->setScale(s);            // 50%..100% clamp happens inside setScale
+  }
 
+  // 5) Event filters (just once)
+  character_->setCursor(Qt::OpenHandCursor);
+  qApp->installEventFilter(this);       // catch Alt+wheel even on overlay/editor
+  this->installEventFilter(this);
+  character_->installEventFilter(this);
+  io_->installEventFilter(this);        // optional but fine
+
+  // 6) Signals
   connectSignals();
 
-  // install drag filter
-  character_->setCursor(Qt::OpenHandCursor);
-  character_->installEventFilter(this);
-  this->installEventFilter(this);
-
-  // first layout pass
+  // 7) First layout pass after everything exists
   QTimer::singleShot(0, this, [this]{ syncWindowToSprite(); });
 }
+
 
 void MainWindow::applyWindowFlags() {
   setWindowFlags(Qt::FramelessWindowHint | Qt::Tool | Qt::WindowStaysOnTopHint);
@@ -150,94 +140,99 @@ void MainWindow::showEvent(QShowEvent* e) {
   syncWindowToSprite();
 }
 
-bool MainWindow::eventFilter(QObject* obj, QEvent* ev) {
-  // We only care about events on the window or the character view.
-  const bool onCharOrSelf = (obj == character_ || obj == this);
-  if (!onCharOrSelf) return QWidget::eventFilter(obj, ev);
 
-  // --- Alt + Wheel = zoom 50%..100% (also handles touchpad pixelDelta) ---
-  if (obj == character_ && ev->type() == QEvent::Wheel) {
+void MainWindow::applyScale(qreal s) {
+  QSettings().setValue("uiScale", s);
+  qDebug() << "applyScale ->" << s;
+
+  keepBottomRightAnchor(this, [this, s]{
+    character_->setScale(s);              // 1) set scale in the view
+    character_->adjustSize();             // 2) let it adopt its sizeHint
+    setFixedSize(character_->sizeHint()); // 3) window == sprite size
+  });
+
+  updateIoGeometry();                     // 4) move/resize the textbox
+}
+
+bool MainWindow::eventFilter(QObject* obj, QEvent* ev) {
+  QWidget* w = qobject_cast<QWidget*>(obj);
+  const bool onSelf      = (obj == this);
+  const bool onCharacter = (obj == character_);
+  const bool onOverlay   = (w && (w == io_ || io_->isAncestorOf(w)));
+
+  // Alt + Wheel = zoom 50%..100% (works on wheel and touchpad)
+  if (ev->type() == QEvent::Wheel && (onCharacter || onOverlay)) {
     auto* we = static_cast<QWheelEvent*>(ev);
     if (we->modifiers() & Qt::AltModifier) {
+      // mouse wheel (angleDelta) and smooth touchpad (pixelDelta)
       qreal steps = 0.0;
-      if (!we->angleDelta().isNull())      steps = we->angleDelta().y() / 120.0;  // mouse wheels
-      else if (!we->pixelDelta().isNull()) steps = we->pixelDelta().y() / 120.0;  // touchpads
+      if (!we->angleDelta().isNull())      steps = we->angleDelta().y() / 120.0;
+      else if (!we->pixelDelta().isNull()) steps = we->pixelDelta().y() / 60.0;
 
-      if (!qFuzzyIsNull(steps)) {
-        const qreal step = 0.05; // 5% per notch
+      if (steps != 0.0) {
+        const qreal step = 0.05;                 // 5% per notch
         qreal s = character_->scale() + steps * step;
-        s = std::clamp<qreal>(s, 0.5, 1.0); // clamp 50%..100%
-        if (!qFuzzyCompare(s + 1, character_->scale() + 1)) {
-          QSettings().setValue("uiScale", s);
-          keepBottomRightAnchor(this, [this, s]{
-            character_->setScale(s);
-            setFixedSize(character_->sizeHint()); // window == sprite size
-          });
-          updateIoGeometry(); // textbox follows exact PNG width
-        }
+        s = std::clamp<qreal>(s, 0.5, 1.0);      // clamp 50%..100%
+        qDebug() << "ALT-WHEEL steps" << steps << "target scale" << s;
+        applyScale(s);                            // <— CALL THE HELPER
       }
       we->accept();
-      return true; // consume Alt+wheel so CharacterView won't see it
+      return true;                                // eat Alt+wheel
     }
-    // not Alt → let it pass through (return false)
   }
 
-  switch (ev->type()) {
-    case QEvent::MouseButtonPress: {
-      auto* me = static_cast<QMouseEvent*>(ev);
-      if (me->button() == Qt::LeftButton) {
-        const bool wantDrag = (dragMod_ == Qt::NoModifier) || (me->modifiers() & dragMod_);
-        if (wantDrag) {
-          dragging_ = true;
-          draggingStarted_ = false;
-          dragOffset_ = me->globalPosition().toPoint() - frameGeometry().topLeft();
-          character_->setCursor(Qt::ClosedHandCursor);
-          return true;  // consume (don’t advance frame while dragging)
-        }
-        // No drag modifier → let CharacterView handle the click (advance emotion)
-      }
-      break;
-    }
 
-    case QEvent::MouseMove: {
-      if (dragging_) {
+  // Drag with configured modifier (Alt/Ctrl/Shift/None)
+  if (onSelf || onCharacter) {
+    switch (ev->type()) {
+      case QEvent::MouseButtonPress: {
         auto* me = static_cast<QMouseEvent*>(ev);
-        const QPoint cur = me->globalPosition().toPoint();
-        const int thresh = QGuiApplication::styleHints()->startDragDistance();
-        if (!draggingStarted_) {
-          const QPoint delta = cur - (dragOffset_ + frameGeometry().topLeft());
-          if (delta.manhattanLength() < thresh) return true; // keep consuming while holding
-          draggingStarted_ = true;
+        if (me->button() == Qt::LeftButton) {
+          const bool wantDrag = (dragMod_ == Qt::NoModifier) || (me->modifiers() & dragMod_);
+          if (wantDrag) {
+            dragging_ = true;
+            draggingStarted_ = false;
+            dragOffset_ = me->globalPosition().toPoint() - frameGeometry().topLeft();
+            character_->setCursor(Qt::ClosedHandCursor);
+            return true; // consume (don’t advance emotion while dragging)
+          }
         }
-        move(cur - dragOffset_);
-        return true;
+        break;
       }
-      break;
-    }
-
-    case QEvent::MouseButtonRelease: {
-      if (dragging_) {
-        dragging_ = false;
-        draggingStarted_ = false;
-        character_->setCursor(Qt::OpenHandCursor);
-        return true; // eat release if we were dragging
+      case QEvent::MouseMove: {
+        if (dragging_) {
+          auto* me = static_cast<QMouseEvent*>(ev);
+          const QPoint cur = me->globalPosition().toPoint();
+          const int thresh = QGuiApplication::styleHints()->startDragDistance();
+          if (!draggingStarted_) {
+            const QPoint delta = cur - (dragOffset_ + frameGeometry().topLeft());
+            if (delta.manhattanLength() < thresh) return true;
+            draggingStarted_ = true;
+          }
+          move(cur - dragOffset_);
+          return true;
+        }
+        break;
       }
-      break;
-    }
-
-    case QEvent::Resize: {
-      if (obj == character_) {
-        updateIoGeometry(); // character resized (e.g., scale) → reposition overlay
+      case QEvent::MouseButtonRelease: {
+        if (dragging_) {
+          dragging_ = false;
+          draggingStarted_ = false;
+          character_->setCursor(Qt::OpenHandCursor);
+          return true;
+        }
+        break;
       }
-      break;
+      default: break;
     }
+  }
 
-    default: break;
+  if (onCharacter && ev->type() == QEvent::Resize) {
+    updateIoGeometry();
   }
 
   return QWidget::eventFilter(obj, ev);
 }
-
 
 void MainWindow::showContextMenu(const QPoint& globalPos) {
   QMenu menu;
@@ -317,7 +312,7 @@ void MainWindow::updateIoGeometry() {
   const int h = std::max(kMinH, int(img.height() * kHeightRatio));
 
   const int x = img.left() + (img.width() - w) / 2;   // center horizontally
-  const int y = img.bottom() - h + 1;                 // anchor to bottom
+  const int y = img.bottom() - h+5;                 // anchor to bottom
 
   QRect box(x, y, w, h);
   box.adjust(0, 4, 0, -4);                            // tiny vertical breathing room
