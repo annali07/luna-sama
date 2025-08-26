@@ -48,13 +48,15 @@ private:
   QPoint dragOffset_;
   Qt::KeyboardModifier dragMod_ = Qt::AltModifier;   // configurable
 
-
-  // MainWindow.h (private:)
+  // audio 
   QTimer* gateTimer_ = nullptr;
-  QMetaObject::Connection gateConn_;   // to disconnect AudioPlayer::finished
-  void startReenableGate(bool audioStarted);
-  void finishGate();                   // calls io_->backToInputMode() once
+  QMetaObject::Connection gateConn_;
+  bool gateAudioDone_ = false;
+  bool gateTimerDone_ = false;
 
+  void startReenableGate(bool audioStarted);
+  void finishGateNow();      // actually flips UI once both conditions met
+  void tryFinishGate();      // checks the two flags
 
 
   // Fades on 10s inactivity

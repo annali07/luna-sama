@@ -181,18 +181,34 @@ void MainWindow::connectSignals() {
 
   connect(backend_, &BackendClient::ready, this, [this](const BackendResult& r){
     io_->showOutput(r.echoText);
-    if (r.audioUrl.isValid())      audio_->play(r.audioUrl);
-    else if (r.localFile.isValid()) audio_->play(r.localFile);
-    else                            io_->backToInputMode();
+
+    bool audioStarted = false;
+    if (r.audioUrl.isValid())      { audio_->play(r.audioUrl);      audioStarted = true; }
+    else if (r.localFile.isValid()){ audio_->play(r.localFile);     audioStarted = true; }
+
+    // Re-enable at max(audio-finished, 3s)
+    startReenableGate(audioStarted);
   });
+
+
 
   // backend end
 
   // errors
-  connect(backend_, &BackendClient::error, this, [this](const QString& msg){
-    io_->showStatus(QStringLiteral("⚠ %1").arg(msg));
-    io_->backToInputMode();
+  connect(audio_, &AudioPlayer::error, this, [this](const QString& e){
+    io_->showStatus(QStringLiteral("⚠ %1").arg(e));
+    // Treat as audio finished; keep 3s minimum if not elapsed yet
+    gateAudioDone_ = true;
+    tryFinishGate();
   });
+
+  connect(backend_, &BackendClient::error, this, [this](const QString& e){
+    io_->showStatus(QStringLiteral("⚠ %1").arg(e));
+    // No audio will play; just fall back to 3s timer (already running with audioStarted=false)
+    gateAudioDone_ = true;
+    tryFinishGate();
+  });
+
 
   // keep overlay glued to sprite; also resize window to the sprite
   connect(modes_, &ModeManager::modeChanged,  this, [this](const QString&){ syncWindowToSprite(); });
@@ -460,25 +476,37 @@ void MainWindow::cancelIdleFadeAndRestore() {
 }
 
 
-// Handles audio finishes playing
-void MainWindow::finishGate() {
+void MainWindow::finishGateNow() {
   if (gateTimer_) { gateTimer_->stop(); gateTimer_->deleteLater(); gateTimer_ = nullptr; }
   if (gateConn_)  { disconnect(gateConn_); gateConn_ = {}; }
   io_->backToInputMode();
 }
 
+void MainWindow::tryFinishGate() {
+  if (gateAudioDone_ && gateTimerDone_) finishGateNow();
+}
+
 void MainWindow::startReenableGate(bool audioStarted) {
-  // cancel any previous gate
+  // reset previous gate
   if (gateTimer_) { gateTimer_->stop(); gateTimer_->deleteLater(); gateTimer_ = nullptr; }
   if (gateConn_)  { disconnect(gateConn_); gateConn_ = {}; }
+  gateAudioDone_ = !audioStarted;   // if no audio, treat as already done
+  gateTimerDone_ = false;
 
+  // 3s minimum hold
   gateTimer_ = new QTimer(this);
   gateTimer_->setSingleShot(true);
-  gateTimer_->start(3000);                        // 3s cap
-  connect(gateTimer_, &QTimer::timeout, this, [this]{ finishGate(); });
+  gateTimer_->start(3000);
+  connect(gateTimer_, &QTimer::timeout, this, [this]{
+    gateTimerDone_ = true;
+    tryFinishGate();
+  });
 
+  // audio finished (only if started)
   if (audioStarted) {
-    // whichever comes first wins; we disconnect the other in finishGate()
-    gateConn_ = connect(audio_, &AudioPlayer::finished, this, [this]{ finishGate(); });
+    gateConn_ = connect(audio_, &AudioPlayer::finished, this, [this]{
+      gateAudioDone_ = true;
+      tryFinishGate();
+    });
   }
 }
