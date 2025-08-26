@@ -39,7 +39,7 @@ void ModeManager::setSearchRoots(const QStringList& roots) {
   refreshModes();
   // pick first mode if none selected
   if (currentMode_.isEmpty() && !modes_.isEmpty())
-    setMode(modes_.front());
+    setMode(modes_[5]);
 }
 
 void ModeManager::refreshModes() {
