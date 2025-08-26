@@ -66,7 +66,7 @@ class TTSService:
               text_lang: str,
               *,
               top_k=15, top_p=0.6, temperature=0.6,
-              speed=1.0,
+              speed=0.7,
               sample_steps=32,
               if_sr=False,
               extra_ref_wavs: list[str] | None = None) -> tuple[int, np.ndarray]:
