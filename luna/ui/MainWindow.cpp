@@ -20,6 +20,9 @@ Snap to corner on first run; Draggable by left-button drag on anywhere of the co
 #include "CharacterView.h"
 #include "IOOverlay.h"
 #include "../core/ModeManager.h"
+#include "../core/BackendClient.h"
+#include "../core/AudioPlayer.h"
+
 #include <QAbstractScrollArea>
 
 #include <algorithm>
@@ -40,6 +43,13 @@ Snap to corner on first run; Draggable by left-button drag on anywhere of the co
 #include <QStyleHints>
 #include <QSettings>
 #include <functional>
+
+#include <QGraphicsOpacityEffect>
+#include <QPropertyAnimation>
+#include <QEasingCurve>
+
+
+
 
 // tiny helpers to persist the drag modifier
 static QString modToKey(Qt::KeyboardModifier m) {
@@ -75,8 +85,9 @@ MainWindow::MainWindow(QWidget* parent) : QWidget(parent) {
   // 2) Core widgets
   modes_     = new ModeManager(this);
   character_ = new CharacterView(modes_, this);
+  audio_ = new AudioPlayer(this);
   io_        = new IOOverlay(this);
-  io_->setNames(QString::fromUtf8("あなた"), QString::fromUtf8("桜小路ルナ"));
+  io_->setNames(QString::fromUtf8("NANA"), QString::fromUtf8("桜小路ルナ"));
   io_->raise(); // overlay on top
 
   // 3) Layout: the window should size exactly to the sprite; no margins
@@ -101,6 +112,41 @@ MainWindow::MainWindow(QWidget* parent) : QWidget(parent) {
   character_->installEventFilter(this);
   io_->installEventFilter(this);        // optional but fine
 
+
+  // fading effect
+  // --- Idle fade wiring ---
+  character_->setAttribute(Qt::WA_Hover, true);
+  io_->setAttribute(Qt::WA_Hover, true);
+
+  // Opacity effect on the character (sprite only)
+  charOpacity_ = new QGraphicsOpacityEffect(character_);
+  charOpacity_->setOpacity(1.0);
+  character_->setGraphicsEffect(charOpacity_);
+
+  // Animation for smooth fades
+  fadeAnim_ = new QPropertyAnimation(charOpacity_, "opacity", this);
+  fadeAnim_->setDuration(220);
+  fadeAnim_->setEasingCurve(QEasingCurve::InOutQuad);
+
+  // 10s idle timer
+  idleTimer_ = new QTimer(this);
+  idleTimer_->setSingleShot(true);
+  idleTimer_->setInterval(10'000);
+  connect(idleTimer_, &QTimer::timeout, this, [this]{
+    faded_ = true;
+    io_->setVisible(false);        // textbox disappears
+    fadeTo(0.5);                   // sprite to 50%
+  });
+
+
+
+
+
+
+
+
+
+
   // 6) Signals
   connectSignals();
 
@@ -119,16 +165,39 @@ void MainWindow::connectSignals() {
     showContextMenu(QCursor::pos());
   });
 
+  // once in ctor:
+  backend_ = new BackendClient(this);
+  backend_->setBaseUrl(QUrl(QStringLiteral("http://127.0.0.1:9880")));
+  backend_->setTextLang(QStringLiteral("ja"));
+
   connect(io_, &IOOverlay::submitted, this, [this](const QString& text){
-    io_->showStatus(QStringLiteral("…"));
-    QTimer::singleShot(1200, this, [this, text]{
-      io_->showOutput(QStringLiteral("LUNA: %1").arg(text));
-      QTimer::singleShot(1200, this, [this]{ io_->backToInputMode(); });
-    });
+    // IOOverlay already switched to "…" (output mode, disabled)
+    backend_->submit(text);
+  });
+
+  connect(backend_, &BackendClient::status, this, [this](const QString& s){
+    io_->showStatus(s);          // keep showing "LUNA …"
+  });
+
+  connect(backend_, &BackendClient::ready, this, [this](const BackendResult& r){
+    io_->showOutput(r.echoText);
+    if (r.audioUrl.isValid())      audio_->play(r.audioUrl);
+    else if (r.localFile.isValid()) audio_->play(r.localFile);
+    else                            io_->backToInputMode();
+  });
+
+  // backend end
+
+  // errors
+  connect(backend_, &BackendClient::error, this, [this](const QString& msg){
+    io_->showStatus(QStringLiteral("⚠ %1").arg(msg));
+    io_->backToInputMode();
   });
 
   // keep overlay glued to sprite; also resize window to the sprite
   connect(modes_, &ModeManager::modeChanged,  this, [this](const QString&){ syncWindowToSprite(); });
+
+
   connect(modes_, &ModeManager::frameChanged, this, [this](int){            syncWindowToSprite(); });
 }
 
@@ -143,7 +212,7 @@ void MainWindow::showEvent(QShowEvent* e) {
 
 void MainWindow::applyScale(qreal s) {
   QSettings().setValue("uiScale", s);
-  qDebug() << "APPLY SCALE ->" << s;
+  // qDebug() << "APPLY SCALE ->" << s;
 
   keepBottomRightAnchor(this, [this, s]{
     character_->setScale(s);              // update view scale
@@ -161,6 +230,18 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* ev) {
   const bool onSelf      = (obj == this);
   const bool onCharacter = (obj == character_);
   const bool onOverlay   = (w && (w == io_ || io_->isAncestorOf(w)));
+
+
+  // Any activity inside the pet window cancels idle and restores if faded
+  if ((onSelf || onCharacter || onOverlay) &&
+      (ev->type() == QEvent::Enter || ev->type() == QEvent::MouseMove)) {
+    cancelIdleFadeAndRestore();
+  }
+
+  // When the mouse leaves the pet window, start the 10s idle countdown
+  if (onSelf && ev->type() == QEvent::Leave) {
+    scheduleIdleFade();
+  }
 
   // ---------- Alt + Wheel = zoom (handles mouse & touchpad) ----------
   // ---- Alt + Wheel = zoom (50%..100%), works for vertical or horizontal wheels/touchpads ----
@@ -352,4 +433,52 @@ void MainWindow::updateIoGeometry() {
   box.adjust(0, 4, 0, -4);                            // tiny vertical breathing room
 
   io_->setBounds(box);
+}
+
+void MainWindow::fadeTo(qreal target) {
+  if (!charOpacity_) return;
+  fadeAnim_->stop();
+  fadeAnim_->setStartValue(charOpacity_->opacity());
+  fadeAnim_->setEndValue(target);
+  fadeAnim_->start();
+}
+
+void MainWindow::scheduleIdleFade() {
+  if (!idleTimer_) return;
+  if (!idleTimer_->isActive())
+    idleTimer_->start();
+}
+
+void MainWindow::cancelIdleFadeAndRestore() {
+  if (!idleTimer_) return;
+  idleTimer_->stop();
+  if (faded_) {
+    faded_ = false;
+    io_->setVisible(true);   // textbox reappears
+    fadeTo(1.0);             // sprite back to full opacity
+  }
+}
+
+
+// Handles audio finishes playing
+void MainWindow::finishGate() {
+  if (gateTimer_) { gateTimer_->stop(); gateTimer_->deleteLater(); gateTimer_ = nullptr; }
+  if (gateConn_)  { disconnect(gateConn_); gateConn_ = {}; }
+  io_->backToInputMode();
+}
+
+void MainWindow::startReenableGate(bool audioStarted) {
+  // cancel any previous gate
+  if (gateTimer_) { gateTimer_->stop(); gateTimer_->deleteLater(); gateTimer_ = nullptr; }
+  if (gateConn_)  { disconnect(gateConn_); gateConn_ = {}; }
+
+  gateTimer_ = new QTimer(this);
+  gateTimer_->setSingleShot(true);
+  gateTimer_->start(3000);                        // 3s cap
+  connect(gateTimer_, &QTimer::timeout, this, [this]{ finishGate(); });
+
+  if (audioStarted) {
+    // whichever comes first wins; we disconnect the other in finishGate()
+    gateConn_ = connect(audio_, &AudioPlayer::finished, this, [this]{ finishGate(); });
+  }
 }
