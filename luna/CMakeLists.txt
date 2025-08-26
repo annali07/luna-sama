@@ -14,9 +14,10 @@ set(CMAKE_AUTOUIC OFF)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Multimedia)
 
 # ---- Sources ----
-add_executable(luna_sama
+set(SOURCES
   # app
   app/main.cpp
+   app/app.rc  
 
   # ui
   ui/MainWindow.cpp         ui/MainWindow.h
@@ -30,10 +31,14 @@ add_executable(luna_sama
   core/AudioPlayer.cpp      core/AudioPlayer.h
 )
 
+add_executable(luna_sama WIN32 ${SOURCES})
+
 # On Windows, build as a GUI app (no console). Harmless elsewhere.
 if (WIN32)
   set_target_properties(luna_sama PROPERTIES WIN32_EXECUTABLE YES)
 endif()
+
+
 
 # ---- Link Qt ----
 target_link_libraries(luna_sama

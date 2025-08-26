@@ -35,4 +35,15 @@ After running `./run.sh`, you can input **Japanese** text and a `.wav` audio fil
 Currently only Japanese is supported (I mean you can type Chinese and output a chinese audio but the quality is uh.... um... not ideal)
 
 
+# Build luna-sama.exe
+```
+cd luna-sama/luna
+cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+cd build
 
+$qt = "E:\Qt\6.9.1\mingw_64"                                                         
+& "$qt\bin\windeployqt.exe" --release .\luna_sama.exe
+
+# Move /luna/ui into /luna/build/ui
+```
+Then you can double click luna_sama.exe and run!
