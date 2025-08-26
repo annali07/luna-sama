@@ -199,14 +199,20 @@ void MainWindow::connectSignals() {
     io_->showStatus(QStringLiteral("⚠ %1").arg(e));
     // Treat as audio finished; keep 3s minimum if not elapsed yet
     gateAudioDone_ = true;
-    tryFinishGate();
+    // wait 3 seconds
+    QTimer::singleShot(3000, this, [this]{
+      finishGateNow();
+    });
   });
 
   connect(backend_, &BackendClient::error, this, [this](const QString& e){
     io_->showStatus(QStringLiteral("⚠ %1").arg(e));
     // No audio will play; just fall back to 3s timer (already running with audioStarted=false)
     gateAudioDone_ = true;
-    tryFinishGate();
+    // wait 3 seconds
+    QTimer::singleShot(3000, this, [this]{
+      finishGateNow();
+    });
   });
 
 

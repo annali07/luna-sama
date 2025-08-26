@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QTextStream>
 #include "../ui/MainWindow.h"
+#include <QLockFile>
 
 static void loadQss(QApplication& app) {
   // try a few common locations: beside the exe (copied by CMake), or source tree
@@ -24,10 +25,18 @@ static void loadQss(QApplication& app) {
 
 int main(int argc, char *argv[]) {
   QApplication app(argc, argv);
-  QApplication::setApplicationName("DesktopPet");
-  QApplication::setOrganizationName("YourOrg");
+  QApplication::setApplicationName("luna-sama");
+  QApplication::setOrganizationName("nana14");
 
-  loadQss(app);
+  // loadQss(app);
+  // Lock file in temp dir, unique name for your app
+    QLockFile lockFile(QDir::temp().absoluteFilePath("luna_sama.lock"));
+    lockFile.setStaleLockTime(0);  // never auto-release
+    if (!lockFile.tryLock()) {
+        // Already running
+        qWarning("Another instance is already running.");
+        return 0;
+    }
 
   MainWindow w;
   w.show();
