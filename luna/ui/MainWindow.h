@@ -7,6 +7,7 @@
 #pragma once
 #include <QWidget>
 #include <QPoint>
+#include "../core/EmotionSpriteController.h"   // ⬅ add this include
 
 class CharacterView;
 class IOOverlay;
@@ -41,6 +42,9 @@ private:
   // NEW: backend + audio
   BackendClient* backend_   = nullptr;   // <-- add this
   AudioPlayer*   audio_     = nullptr;   // <-- add this
+
+  // NEW: Emotional controller
+  EmotionSpriteController* emoCtrl_ = nullptr; // ⬅ ADD HERE
 
   // Drag state
   bool   dragging_        = false;

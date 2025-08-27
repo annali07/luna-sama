@@ -4,6 +4,20 @@ project(LUNA LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+
+# --- Build type helpers (single-config generators like Ninja/Makefiles) ---
+if(NOT CMAKE_CONFIGURATION_TYPES)  # only true for single-config generators
+  set(default_build_type "Debug")
+  if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
+    set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE STRING "Choose the type of build." FORCE)
+  endif()
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
+endif()
+
+# Give Debug builds a postfix so luna_sama_d.exe is clearly debug
+set(CMAKE_DEBUG_POSTFIX "_d")
+
 # Qt auto-magic
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -29,16 +43,22 @@ set(SOURCES
   core/ModeManager.cpp      core/ModeManager.h
   core/BackendClient.cpp    core/BackendClient.h
   core/AudioPlayer.cpp      core/AudioPlayer.h
+  core/EmotionSpriteController.cpp
+  core/EmotionSpriteController.h
 )
 
 add_executable(luna_sama WIN32 ${SOURCES})
 
 # On Windows, build as a GUI app (no console). Harmless elsewhere.
+# if (WIN32)
+#   set_target_properties(luna_sama PROPERTIES WIN32_EXECUTABLE YES)
+# endif()
+
 if (WIN32)
-  set_target_properties(luna_sama PROPERTIES WIN32_EXECUTABLE YES)
+  set_target_properties(luna_sama PROPERTIES
+    WIN32_EXECUTABLE $<IF:$<CONFIG:Release>,YES,NO>
+  )
 endif()
-
-
 
 # ---- Link Qt ----
 target_link_libraries(luna_sama

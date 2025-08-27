@@ -1,0 +1,4 @@
+/parsed_dialogue
+*.txt
+*
+!.gitignore

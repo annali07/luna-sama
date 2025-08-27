@@ -48,7 +48,8 @@ Snap to corner on first run; Draggable by left-button drag on anywhere of the co
 #include <QPropertyAnimation>
 #include <QEasingCurve>
 
-
+#define SMIRK_PROB 60
+#define TEXT_WAIT 4000
 
 
 // tiny helpers to persist the drag modifier
@@ -86,6 +87,7 @@ MainWindow::MainWindow(QWidget* parent) : QWidget(parent) {
   modes_     = new ModeManager(this);
   character_ = new CharacterView(modes_, this);
   audio_ = new AudioPlayer(this);
+  emoCtrl_   = new EmotionSpriteController(modes_, this);  // loads summary.json automatically
   io_        = new IOOverlay(this);
   io_->setNames(QString::fromUtf8("NANA"), QString::fromUtf8("桜小路ルナ"));
   io_->raise(); // overlay on top
@@ -167,7 +169,8 @@ void MainWindow::connectSignals() {
 
   // once in ctor:
   backend_ = new BackendClient(this);
-  backend_->setBaseUrl(QUrl(QStringLiteral("http://127.0.0.1:9880")));
+  backend_->setLlmBaseUrl(QUrl(QStringLiteral("http://127.0.0.1:8000"))); // your FastAPI LLM
+  backend_->setTtsBaseUrl(QUrl(QStringLiteral("http://127.0.0.1:9880"))); // your SoVITS
   backend_->setTextLang(QStringLiteral("ja"));
 
   connect(io_, &IOOverlay::submitted, this, [this](const QString& text){
@@ -186,8 +189,35 @@ void MainWindow::connectSignals() {
     if (r.audioUrl.isValid())      { audio_->play(r.audioUrl);      audioStarted = true; }
     else if (r.localFile.isValid()){ audio_->play(r.localFile);     audioStarted = true; }
 
-    // Re-enable at max(audio-finished, 3s)
     startReenableGate(audioStarted);
+  });
+
+  connect(backend_, &BackendClient::ready, this, [this](const BackendResult& r){
+    io_->showOutput(r.echoText);
+
+    if (!r.emotion.isEmpty())
+      emoCtrl_->applyEmotion(r.emotion.trimmed());
+
+    bool audioStarted = false;
+    if (r.audioUrl.isValid())      { audio_->play(r.audioUrl);      audioStarted = true; }
+    else if (r.localFile.isValid()){ audio_->play(r.localFile);     audioStarted = true; }
+
+    startReenableGate(audioStarted);
+  });
+
+  connect(backend_, &BackendClient::emotionAvailable,
+        emoCtrl_,  &EmotionSpriteController::applyEmotion);
+
+
+  // keep your existing gating connection; add a second connection for the smirk:
+  connect(audio_, &AudioPlayer::finished, this, [this]{
+    if (emoCtrl_) emoCtrl_->maybeSmirk(SMIRK_PROB);  // 30% chance
+  });
+
+  connect(emoCtrl_, &EmotionSpriteController::frameChosen, this, [this](const QString& p){
+    // qDebug() << "[ui] face path =" << p;
+    // Or surface it briefly in the overlay:
+    // io_->showStatus(QStringLiteral("face → %1").arg(p));
   });
 
 
@@ -200,7 +230,7 @@ void MainWindow::connectSignals() {
     // Treat as audio finished; keep 3s minimum if not elapsed yet
     gateAudioDone_ = true;
     // wait 3 seconds
-    QTimer::singleShot(3000, this, [this]{
+    QTimer::singleShot(TEXT_WAIT, this, [this]{
       finishGateNow();
     });
   });
@@ -210,7 +240,7 @@ void MainWindow::connectSignals() {
     // No audio will play; just fall back to 3s timer (already running with audioStarted=false)
     gateAudioDone_ = true;
     // wait 3 seconds
-    QTimer::singleShot(3000, this, [this]{
+    QTimer::singleShot(TEXT_WAIT, this, [this]{
       finishGateNow();
     });
   });
@@ -502,7 +532,7 @@ void MainWindow::startReenableGate(bool audioStarted) {
   // 3s minimum hold
   gateTimer_ = new QTimer(this);
   gateTimer_->setSingleShot(true);
-  gateTimer_->start(3000);
+  gateTimer_->start(TEXT_WAIT);
   connect(gateTimer_, &QTimer::timeout, this, [this]{
     gateTimerDone_ = true;
     tryFinishGate();

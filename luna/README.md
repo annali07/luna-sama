@@ -1,4 +1,5 @@
 # Wiring it together (signals/slots)
+# Original Envision 
 
 1. User submits text
 - `IOOverlay::submitted(text)` → `State.toWaiting()` → `BackendClient::submit(text)`

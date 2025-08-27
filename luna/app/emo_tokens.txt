@@ -1,0 +1,15 @@
+<E:smile>
+<E:serious>
+<M:eyes_closed>|<E:serious>
+<E:thinking>
+<E:skeptical>
+<E:resigned>
+<E:surprised>
+<E:angry>
+<E:sad>
+<E:dislike>
+<E:smirk>
+<E:embarrassed>
+<E:smile>|<M:blush>
+<E:serious>|<M:blush>
+

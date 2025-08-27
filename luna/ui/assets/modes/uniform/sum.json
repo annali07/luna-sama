@@ -1,0 +1,73 @@
+{
+  "<E:smile>": [
+    "lun_s_0_0_00",
+    "lun_s_0_0_04",
+    "lun_s_0_0_09",
+    "lun_s_0_2_00",
+    "lun_s_0_2_04"
+  ],
+
+  "<M:eyes_closed>": [
+    "lun_s_0_0_01"
+  ],
+
+  "<E:thinking>": [
+    "lun_s_0_0_02",
+    "lun_s_0_2_02"
+  ],
+
+  "<E:skeptical>": [
+    "lun_s_0_0_03",
+    "lun_s_0_2_03"
+  ],
+
+  "<E:serious>": [
+    "lun_s_0_0_05",
+    "lun_s_0_0_08",
+    "lun_s_0_2_01"
+  ],
+
+  "<E:resigned>": [
+    "lun_s_0_0_06"
+  ],
+
+  "<E:surprised>": [
+    "lun_s_0_0_07",
+    "lun_s_0_2_07"
+  ],
+
+  "<E:angry>": [
+    "lun_s_0_2_05"
+  ],
+
+  "<E:sad>": [
+    "lun_s_0_2_06"
+  ],
+
+  "<E:dislike>": [
+    "lun_s_0_2_08"
+  ],
+
+  "<E:smirk>": [
+    "lun_s_0_2_09"
+  ],
+
+  "<E:embarrassed>": [
+    "lun_s_0_2_17"
+  ],
+
+  "<E:smile>|<M:blush>": [
+    "lun_s_0_0_11",
+    "lun_s_0_0_12",
+    "lun_s_0_0_13",
+    "lun_s_0_0_16",
+    "lun_s_0_2_12",
+    "lun_s_0_2_19"
+  ],
+
+  "<E:serious>|<M:blush>": [
+    "lun_s_0_0_18",
+    "lun_s_0_2_15",
+    "lun_s_0_2_18"
+  ]
+}
