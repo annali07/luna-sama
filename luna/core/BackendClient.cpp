@@ -22,6 +22,8 @@ void BackendClient::submit(const QString& userText) {
 
   pendingUser_ = userText;
   emit status(QStringLiteral("LUNA …"));
+  emit emotionAvailable("<E:thinking>");
+
 
   QUrl url = llmBaseUrl_.resolved(QUrl(QStringLiteral("/chat")));
   QNetworkRequest req(url);

@@ -220,6 +220,9 @@ void MainWindow::connectSignals() {
     // io_->showStatus(QStringLiteral("face → %1").arg(p));
   });
 
+  connect(backend_, &BackendClient::emotionAvailable,
+        emoCtrl_,   &EmotionSpriteController::applyEmotion);
+
 
 
   // backend end

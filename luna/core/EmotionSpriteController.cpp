@@ -29,16 +29,13 @@ void EmotionSpriteController::reloadForCurrentMode() {
     if (QFileInfo::exists(p)) { jsonPath = p; break; }
   }
   if (jsonPath.isEmpty()) {
-    // qDebug() << "[emo] no sum/summary/combined json in" << dir;
     return;
   }
 
-  // qDebug() << "[emo] loading map from" << jsonPath;
   QFile f(jsonPath);
-  if (!f.open(QIODevice::ReadOnly)) { // qDebug() << "[emo] open failed"; return; }
+  if (!f.open(QIODevice::ReadOnly)) return;   // ← add this
 
   const QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
-  if (!doc.isObject()) { // qDebug() << "[emo] json is not an object"; return; }
 
   const QJsonObject obj = doc.object();
   for (auto it = obj.begin(); it != obj.end(); ++it) {
@@ -48,7 +45,6 @@ void EmotionSpriteController::reloadForCurrentMode() {
       if (e.isString()) v << e.toString();
     if (!v.isEmpty()) lists_.insert(it.key(), v);
   }
-  // qDebug() << "[emo] tokens loaded:" << lists_.keys();
 }
 
 QString EmotionSpriteController::pickOne(const QString& token) const {
@@ -74,29 +70,23 @@ bool EmotionSpriteController::applyEmotion(const QString& token) {
 
   // --- existing selection logic (unchanged), but use 'chosen' instead of 'token' ---
   const QString base = pickOne(chosen);
-  // qDebug() << "[emo] token =" << token << " chosen =" << chosen
-  //          << " -> base =" << base << " modeDir =" << modes_->modeDir();
 
   if (base.isEmpty()) return false;
 
   // try by basename (indexed frames)
   if (modes_->setFrameByBasename(base)) {
-    // const QString abs = modes_->modeDir() + "/" + base + ".png";
-    // qDebug() << "   set by basename, abs guess =" << abs;
+    const QString abs = modes_->modeDir() + "/" + base + ".png";
     return true;
   }
 
   // fallback: absolute path
   const QString abs = modes_->modeDir() + "/" + base + ".png";
   const bool exists = QFileInfo::exists(abs);
-  // qDebug() << "   basename not found. try abs =" << abs << " exists? " << exists;
   if (exists) {
     const bool ok = modes_->ensureAndSetFramePath(abs);
-    // qDebug() << "   ensureAndSetFramePath ->" << ok;
     return ok;
   }
 
-  // qDebug() << "   no PNG found for base" << base;
   return false;
 }
 
