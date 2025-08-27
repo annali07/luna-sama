@@ -1,0 +1,118 @@
+2025-08-21
+周四
+
+早上考完试，下午刷到了丛雨桌宠的视频，想做一个露娜版本，上网查了一下，有个人用Qt做的
+就想好了，我也要用Qt+Lora+gpt sovits做
+那么第一步就是解包，然后发现最后还是garbro最好用（
+得到了所有立绘，剧本，和音频文件
+但是怎么都找不到汉化的剧本，最后放弃了
+
+2025-08-22
+周五
+
+用碎片时间清理剧本，把一些立绘的东西补全（这样最后才能分类立绘情感，然后把每个露娜台词都做情感分类，然后map到立绘）
+这样桌宠说台词的同时可以切换相应表情的立绘
+但是文本乱七八糟的，处理起来特别麻烦，一堆需要人工清理的东西，清理文本估计用了5个小时（）
+
+2025-08-23
+周六
+
+写脚本把文本台词和音频文件对齐，然后用GPT Sovits训练了一个模型
+效果感觉还不错，就是没什么感情，因为没带emotion token训练（未来TODO）
+
+2025-08-24
+周日
+
+把sovits模型穿到github，然后写了一些很漂亮的readme（雾）
+没做什么今天
+
+2025-08-25
+周一
+
+开始开发Qt软件
+首先把软件要做的功能和所有交互写下来，让gpt给我做planning
+我发现Qt和Java Swing还挺像的（？）感觉CSC207的记忆被唤醒了...
+我竟然开始用SOLID了（xs
+今天搭了一个基础框架，可以left click换例会，right click选择menu
+然后alt+drag可以在桌面拉动，然后alt+鼠标滚轮可以缩放大小，然后有个input textbox
+基础的UI和功能都搭建好了，就是需要后端，和两个API交互（LLM&sovits），这个还一点都没有做。。。
+
+2025-08-26
+周二
+
+把sovits模型和qt的后端连接起来
+现在可以自动播放语音，input textbox输入text，然后后端会自动invoke sovits api
+然后API会返还语音所在的文件夹路径，qt后端再去播放，然后textbox目前只会display我input的文字
+然后会回到可输入状态
+现在就是个复读机hhhh等llm做好就是chatbot了
+
+
+把luna-qlora训练好了
+好简单（虽然我可能训练的效果不是很好）
+不过竟然只要一个train.py就够了，我以为会很复杂的文件（）
+
+晚上把所有立绘做了情感分类，先是define了一堆emotion token，然后把每个文件夹（不同服饰的立绘）
+每个立绘文件map到一个emotion token，存到json里面
+然后把文本做最后处理，把每一行带有露娜的台词，保留三行：露娜的名字，台词，emotion tag（如果有的话）
+
+其实最开始，训练数据我只用的露娜的台词。我没有把其他角色台词加进去。
+效果太糟糕了。。。。。。
+inference的时候，我不管input什么，返回的都是同一句话。然后我查了一下，说是因为我的数据是这样的，每一个训练集，
+user text都是一样的，所以露娜学不到根据不同的input text回答不同的东西
+都是这个东西
+（次の台詞を、最初の行に感情タグを出力し、その次の行に台詞を出力してください。）
+
+所有我就只能再重新创建一遍数据集，每个露娜的台词，都往前找不是露娜说的台词，然后这么打包成一个数据集entry。
+这次在4090上训练，大概用了1.5小时。（显存24G只用了12G，神奇。跑了3个epoch，batch size 8）
+试了一下，感动哭了，效果非常好。（和之前比）
+其实效果也没有很好吧。说实话这是我人生中第一次训练模型（）
+看了眼loss，大概最后在0.9左右，然后accuracy在0.7？左右
+不是特别理想，不过我知足了，她可以回答我说的话了TAT
+收工睡觉，把llm和luna.exe拼接就是明天的工作了
+
+试着在我本地3080跑了一下llm和sovits，两个模型
+竟然能跑...我震惊了
+10GB的显存吃了9.8GB
+真的是borderline XD
+
+2025-08-27
+周三
+
+把LoRA模型和Qwen3-8B模型merge到一起，成为一个模型
+这下总共有两个模型了，可以通过./run_api_sovits.sh和python luna_llm/api.py来跑（写个脚本一键run？）
+接下来就是把LLM的API和luna exe链接起来
+首先把core/BackendClient改了一下。因为这个文件已经有input text和会播放output audio的逻辑（昨天写好的）
+但是现在传回给前端的就是unmodified input text，然后display audio
+
+现在呢，只要把这个input text传给luna_llm就行，然后就可以得到llm的response，传回前端
+这样，display的text就会是llm的response
+然后还有一些和audio play sync的逻辑
+首先，先把input text传给llm。llm返还response，再把response传给sovits模型。
+然后，拿到audio之后！！再signal前端，然后text&audio同时返还
+
+测试了一下，非常好，我的露娜能回答我的话了呜呜呜呜呜呜
+（就是inference好慢啊草，我的3080
+
+然后，就是最后的逻辑了，根据emotion tag来display不同的立绘
+新创建了core/EmotionSpriteController，会和core/ModeManager做交互
+然后要在当前的服装的立绘文件夹里，根据summary。json来寻找当前句子对应的emotion tag对应的立绘，
+随机选一个变化（然后我还加了在句尾随机变换露娜的经典表情ww）
+好多bug。。。
+立绘没有变化
+woc解决了，我的backend的emotion ready signal没有在mainwindow register，也就是说没人在听这个signal
+
+还有一个问题，llm很喜欢output<E:serious>的emotion tag。。我想让露娜多笑一笑
+所以就在emotionspritecontroller里面，applyEmotion，里面加了一定概率，会把serious token换成smile（笑
+
+接下来就是清理repo了~~~
+
+
+
+
+
+
+
+完结撒花！！！！！！！
+
+
+
