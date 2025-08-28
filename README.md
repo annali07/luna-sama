@@ -18,6 +18,7 @@ LUNA-SAMA/
 - Enter text in the input box and receive Luna’s reply in her style.  
 - Replies will be spoken by Luna's voice (audio plays automatically when there is a response from Luna)
 - So just as if you are having a conversation with Luna! Live!
+- **only Japanese text input & output is supported at the moment**
 
 ## Components/Details
 - App is build using Qt framework, Qt 3.9.1.
