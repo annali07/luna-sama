@@ -1,3 +1,4 @@
+# for voice model
 --no-binary=opencc
 numpy<2.0
 scipy
@@ -47,3 +48,14 @@ fastapi
 uvicorn
 soundfile
 
+
+
+# for llm
+torch --extra-index-url https://download.pytorch.org/whl/cu121  # (replace cu121 with your CUDA version)
+transformers==4.43.0
+peft==0.11.1
+trl==0.9.4
+accelerate
+bitsandbytes
+fastapi
+uvicorn
