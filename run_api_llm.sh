@@ -1,1 +1,2 @@
-python ./luna_llm/api.py
+cd luna_llm
+python api.py
